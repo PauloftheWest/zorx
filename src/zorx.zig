@@ -11,6 +11,7 @@ var base_dir: []u8 = undefined;
 var main_config: []u8 = undefined;
 
 fn orx_bootstrap(...) callconv(.c) C.base.type.orxSTATUS {
+    keep_going = false;
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 	const allocator = gpa.allocator();
 
@@ -22,11 +23,25 @@ fn orx_bootstrap(...) callconv(.c) C.base.type.orxSTATUS {
     std.mem.copyForwards(u8, bdir, base_dir);
     bdir[bdir.len - 1] = 0;
 
+    const stat = std.fs.cwd().statFile(base_dir) catch {
+        log("Unable to stat config directory. Does it exist?");
+        return C.base.type.orxSTATUS_FAILURE;
+    };
+    switch (stat.kind) {
+        .directory => {},
+        else => {
+            log("Unable to stat config directory. Does it exist?");
+            return C.base.type.orxSTATUS_FAILURE;
+        }
+    }
+
     // Add config storage to find the initial config file
     //TODO: This doesn't check for directory's existence.
     if (C.core.resource.orxResource_AddStorage(C.core.config.orxCONFIG_KZ_RESOURCE_GROUP, bdir.ptr, C.base.type.orxFALSE) == C.base.type.orxSTATUS_FAILURE) {
         log("Unable to load config directory!");
     }
+
+    keep_going = true;
     return C.base.type.orxSTATUS_SUCCESS;
 }
 
@@ -36,7 +51,6 @@ fn orx_update(pstClockInfo: [*c]const C.core.clock.orxCLOCK_INFO, p: ?*anyopaque
     _ = p;
 
     if (C.io.input.orxInput_HasBeenActivated("Quit") == C.base.type.orxTRUE) {
-        //orxEvent_SendShort(orxEVENT_TYPE_SYSTEM, orxSYSTEM_EVENT_CLOSE);
         _ = C.core.event.orxEvent_SendShort(C.core.event.orxEVENT_TYPE_SYSTEM, C.core.system.orxSYSTEM_EVENT_CLOSE);
     }
 
@@ -129,15 +143,25 @@ pub fn init(ini_path: []u8) !void {
     base_dir = ini_path[0..pos+1];
     main_config = ini_path[pos+1..];
 
-    _ = C.core.config.orxConfig_SetBootstrap(orx_bootstrap);
-    _ = C.debug.debug._orxDebug_Init();
+    if (C.core.config.orxConfig_SetBootstrap(orx_bootstrap) != C.base.type.orxSTATUS_SUCCESS) {
+        log("Unable to bootstrap");
+        return;
+    }
+
+    if (C.debug.debug._orxDebug_Init() != C.base.type.orxSTATUS_SUCCESS) {
+        log("Unable to init debug");
+        return;
+    }
 
     log("zorx initializing");
 
     C.base.module.orxModule_Register(C.base.module.orxMODULE_ID_MAIN, "MAIN", orx_main_setup, orx_init, orx_exit);
 
     const orx_args: [1] [*c]u8 = .{@constCast(main_config.ptr)};
-    _ = C.orx.orxParam_SetArgs(1, @constCast(@ptrCast(&orx_args)));
+    if (C.orx.orxParam_SetArgs(1, @constCast(@ptrCast(&orx_args))) != C.base.type.orxSTATUS_SUCCESS) {
+        log("unable to setup ini file.");
+        return;
+    }
 
 //#ifdef __orxSTATIC__
     // Silences param & plugin warnings 
@@ -146,7 +170,7 @@ pub fn init(ini_path: []u8) !void {
 //#endif /* __orxSTATIC */
 
     // Inits the engine 
-    if (C.base.module.orxModule_Init(C.base.module.orxMODULE_ID_MAIN) == C.base.type.orxSTATUS_FAILURE) {
+    if (C.base.module.orxModule_Init(C.base.module.orxMODULE_ID_MAIN) != C.base.type.orxSTATUS_SUCCESS) {
         log("Failed to intialize main module!");
         return;
     }

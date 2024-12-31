@@ -1,20 +1,11 @@
 const std = @import("std");
+const zorx_build = @import("build-lib.zig");
 
 pub fn build(b: *std.Build) void {
-    const target = b.standardTargetOptions(.{});
-    const optimize = b.standardOptimizeOption(.{});
+    const target: std.Build.ResolvedTarget = b.standardTargetOptions(.{});
+    const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
 
-    const lib = b.addStaticLibrary(.{
-        .name = "zorx",
-        // In this case the main source file is merely a path, however, in more
-        // complicated build scripts, this could be a generated file.
-        .root_source_file = b.path("src/zorx.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
-    lib.addSystemIncludePath(.{ .cwd_relative = "./ext/orx/code/include/"});
-    lib.linkLibC();
+    const lib = zorx_build.build_lib(b, target, optimize);
 
     b.installArtifact(lib);
 
@@ -27,11 +18,10 @@ pub fn build(b: *std.Build) void {
 
     exe.addSystemIncludePath(.{ .cwd_relative = "./ext/orx/code/include/"});
     exe.addSystemIncludePath(.{ .cwd_relative = "./src/"});
-    exe.addLibraryPath(.{ .cwd_relative = "./ext/orx/code/lib/dynamic/"});
     exe.linkLibC();
-    exe.linkSystemLibrary("orxd");
 
-    exe.addCSourceFile(.{ .file = .{ .cwd_relative = "src/wrap.c" } });
+    exe.addLibraryPath(.{ .cwd_relative = "./ext/orx/code/lib/dynamic/"});
+    exe.linkSystemLibrary("orxd");
 
     b.installArtifact(exe);
 }

@@ -19,6 +19,4 @@ pub fn main() !void {
 
     const ini_path = args[1];
     try zorx.init(ini_path);
-
-    std.debug.print("{}\n", .{C.util.string.orxString_IsCharacterASCII('D')});
 }
