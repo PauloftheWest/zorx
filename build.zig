@@ -5,12 +5,20 @@ pub fn build(b: *std.Build) void {
     const target: std.Build.ResolvedTarget = b.standardTargetOptions(.{});
     const optimize: std.builtin.OptimizeMode = b.standardOptimizeOption(.{});
 
-    const lib = zorx_build.build_lib(b, target, optimize);
+    const libzorx = b.addStaticLibrary(.{
+        .name = "zorx",
+        .root_source_file = b.path("src/zorx.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
 
-    b.installArtifact(lib);
+    libzorx.addSystemIncludePath(.{ .cwd_relative = "./ext/orx/code/include/"});
+    libzorx.linkLibC();
+
+    b.installArtifact(libzorx);
 
     const exe = b.addExecutable(.{
-        .name = "zorx",
+        .name = "zorx-cli",
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
